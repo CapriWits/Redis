@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="Sec-Kill-lib">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/webapp/WEB-INF/lib/javax.servlet-api-3.1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

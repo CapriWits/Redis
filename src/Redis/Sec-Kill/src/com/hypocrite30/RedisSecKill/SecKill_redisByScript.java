@@ -1,0 +1,68 @@
+package com.hypocrite30.RedisSecKill;
+
+import org.slf4j.LoggerFactory;
+import redis.clients.jedis.HostAndPort;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * @Description: Lua脚本给乐观锁添加原子性
+ * @Author: Hypocrite30
+ * @Date: 2021/5/24 21:51
+ */
+public class SecKill_redisByScript {
+    private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SecKill_redisByScript.class);
+
+    /**
+     * Lua脚本
+     * 用户抢多次，返回2
+     * 商品抢完，返回0
+     * 成功抢到，返回1
+     */
+    public static final String SEC_KILL_SCRIPT = "local userid=KEYS[1];\r\n" +
+            "local prodid=KEYS[2];\r\n" +
+            "local qtkey='sk:'..prodid..\":qt\";\r\n" +
+            "local usersKey='sk:'..prodid..\":usr\";\r\n" +
+            "local userExists=redis.call(\"sismember\",usersKey,userid);\r\n" +
+            "if tonumber(userExists)==1 then \r\n" +
+            "   return 2;\r\n" +
+            "end\r\n" +
+            "local num= redis.call(\"get\" ,qtkey);\r\n" +
+            "if tonumber(num)<=0 then \r\n" +
+            "   return 0;\r\n" +
+            "else \r\n" +
+            "   redis.call(\"decr\",qtkey);\r\n" +
+            "   redis.call(\"sadd\",usersKey,userid);\r\n" +
+            "end\r\n" +
+            "return 1";
+
+    public static final String SEC_KILL_SCRIPT2 =
+            "local userExists=redis.call(\"sismember\",\"{sk}:0101:usr\",userid);\r\n" +
+                    " return 1";
+
+    public static boolean doSecKill(String uid, String prodid) throws IOException {
+        JedisPool jedispool = JedisPoolUtil.getJedisPoolInstance();
+        Jedis jedis = jedispool.getResource();
+
+        //String sha1=  .secKillScript;
+        String sha1 = jedis.scriptLoad(SEC_KILL_SCRIPT);
+        Object result = jedis.evalsha(sha1, 2, uid, prodid);
+
+        String reString = String.valueOf(result);
+        if ("0".equals(reString)) {
+            System.err.println("已抢空！！");
+        } else if ("1".equals(reString)) {
+            System.out.println("抢购成功！！！！");
+        } else if ("2".equals(reString)) {
+            System.err.println("该用户已抢过！！");
+        } else {
+            System.err.println("抢购异常！！");
+        }
+        jedis.close();
+        return true;
+    }
+}
